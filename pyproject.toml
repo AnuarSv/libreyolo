@@ -441,6 +441,7 @@ conflicts = [
     [{ extra = "molmo2" }, { extra = "hf" }],
     [{ extra = "molmo2" }, { extra = "all" }],
     [{ extra = "molmo2" }, { extra = "eomt" }],
+    [{ extra = "molmo2" }, { extra = "gen" }],
     [{ extra = "molmo2" }, { extra = "ground" }],
     [{ extra = "molmo2" }, { extra = "label" }],
     [{ extra = "molmo2" }, { extra = "lora" }],
