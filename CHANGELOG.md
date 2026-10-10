@@ -46,6 +46,9 @@ before 1.4.0 are documented in the
 
 ### Fixed
 
+- **Simultaneous `save=True` runs no longer share a run directory.**
+  `increment_path(..., mkdir=True)` now reserves the directory by creating it, so two predict, track or generate calls starting at the same moment get separate `predict`, `predict2`, ... folders instead of overwriting each other's files.
+
 - **YOLO9 training clips the gradient norm and assigns labels in fp32. (#927)**
   YOLO9, YOLO9-E2E and YOLO9-P2 clip the gradient L2 norm at 10 before each optimizer step, as the MultimediaTechLab/YOLO recipe does (`clip_max_norm`, `0` to disable). The training assigner scores anchors in fp32, so fp16 autocast can no longer flush every class probability to zero and leave a batch without positives.
 - **YOLO9 fine-tuning no longer trains a randomly initialised PGI branch by default. (#927)**
