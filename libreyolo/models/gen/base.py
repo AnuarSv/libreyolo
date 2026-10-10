@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import platform
 import random
 import re
 import time
@@ -198,7 +199,7 @@ class LibreGenModel:
         return resolved
 
     def _resolve_dtype(self):
-        """bf16 on MPS and on CUDA when supported (else fp16); fp32 on CPU."""
+        """bf16 on MPS (macOS 14+) and on CUDA when supported (else fp16); fp32 otherwise."""
         import torch
 
         explicit = {
@@ -209,13 +210,18 @@ class LibreGenModel:
         if self.dtype != "auto":
             return explicit[self.dtype]
         if self.device.type == "mps":
-            # fp32 doubles the memory of weights that are published in bf16.
+            # fp32 doubles the memory of weights that are published in bf16,
+            # but MPS only has bfloat16 from macOS 14.
+            release = platform.mac_ver()[0].split(".")[0]
+            if release.isdigit() and int(release) < 14:
+                return torch.float32
             return torch.bfloat16
         if self.device.type != "cuda":
             return torch.float32
-        if torch.cuda.is_bf16_supported():
-            return torch.bfloat16
-        return torch.float16
+        # Ask the selected GPU, not whichever one is current.
+        with torch.cuda.device(self.device):
+            supported = torch.cuda.is_bf16_supported()
+        return torch.bfloat16 if supported else torch.float16
 
     def to(self, device) -> "LibreGenModel":
         if self.offload:

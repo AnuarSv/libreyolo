@@ -81,7 +81,7 @@ model = LibreGen("flux2-klein-4b", dtype="fp16")
 ```
 
 `device="auto"` picks CUDA, then MPS, then CPU. `dtype="auto"` is bf16 on
-CUDA and MPS and fp32 on CPU.
+CUDA and MPS and fp32 on CPU (and on MPS before macOS 14, which has no bf16).
 
 ## Local directories
 

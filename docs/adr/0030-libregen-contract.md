@@ -167,7 +167,7 @@ libreyolo generate prompt="a red fox" model=sana-sprint-0.6b seed=0
 
 Constructor arguments: `device` (`"auto"` picks CUDA, then MPS, then CPU),
 `dtype` (`"auto"` is bf16 on CUDA and MPS, fp16 on CUDA without bf16, fp32
-on CPU; or `"bf16"`, `"fp16"`, `"fp32"`), `offload` (CUDA only).
+on CPU and on MPS before macOS 14; or `"bf16"`, `"fp16"`, `"fp32"`), `offload` (CUDA only).
 `model.pipeline` is the loaded upstream object, the raw escape hatch.
 
 Install: `pip install "libreyolo[gen]"`.

@@ -327,10 +327,16 @@ def test_interleaved_streams_keep_their_own_run_directory(model, tmp_path, monke
     ]
 
 
-def test_auto_dtype_follows_the_device(model):
+def test_auto_dtype_follows_the_device(model, monkeypatch):
+    import platform
+
     assert model._resolve_dtype() is torch.float32
     model.device = torch.device("mps")
+    monkeypatch.setattr(platform, "mac_ver", lambda: ("15.1", ("", "", ""), "arm64"))
     assert model._resolve_dtype() is torch.bfloat16
+    # MPS has no bfloat16 before macOS 14.
+    monkeypatch.setattr(platform, "mac_ver", lambda: ("13.6", ("", "", ""), "arm64"))
+    assert model._resolve_dtype() is torch.float32
     model.dtype = "fp16"
     assert model._resolve_dtype() is torch.float16
 
