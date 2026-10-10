@@ -2,18 +2,28 @@
 
 import typer
 
-from ..command_utils import exit_with_error, help_json_callback, model_call_error_code
+from ..command_utils import (
+    exit_with_error,
+    help_json_callback,
+    model_call_error_code,
+    parse_imgsz_str,
+)
 from ..output import OutputHandler
 
 
 def generate_cmd(
-    prompt: str = typer.Option(
-        ..., help="Text to render, or a .txt file with one prompt per line"
+    prompt: str | None = typer.Option(
+        None, help="Text to render; always literal text, never a path"
+    ),
+    prompt_file: str | None = typer.Option(
+        None, help="Text file with one prompt per line (instead of prompt)"
     ),
     model: str = typer.Option(
         "flux2-klein-4b", help="LibreGen alias or local model directory"
     ),
-    imgsz: int | None = typer.Option(None, help="Square output size in pixels"),
+    imgsz: str | None = typer.Option(
+        None, help="Output size: 1024 (square) or HEIGHTxWIDTH such as 768x1024"
+    ),
     seed: int | None = typer.Option(None, help="Seed; the same seed repeats the image"),
     n: int = typer.Option(1, help="Images per prompt"),
     steps: int | None = typer.Option(None, help="Sampling steps (family knob)"),
@@ -40,15 +50,31 @@ def generate_cmd(
     from pathlib import Path
 
     out = OutputHandler(json_mode=json_output, quiet=quiet)
+    if prompt is None and prompt_file is None:
+        exit_with_error(
+            out, "config_required_key", "Pass prompt=... or prompt_file=... ."
+        )
+    if prompt is not None and prompt_file is not None:
+        exit_with_error(
+            out, "config_conflict", "Pass either prompt or prompt_file, not both."
+        )
     try:
-        prompts: str | list[str] = prompt
-        if prompt.lower().endswith(".txt"):
-            if not Path(prompt).is_file():
-                raise FileNotFoundError(f"Prompt file not found: {prompt}")
-            lines = Path(prompt).read_text(encoding="utf-8").splitlines()
+        size = parse_imgsz_str(imgsz)
+    except (ValueError, TypeError) as exc:
+        exit_with_error(out, "invalid_imgsz", str(exc))
+    try:
+        prompts: str | list[str]
+        if prompt_file is not None:
+            if not Path(prompt_file).is_file():
+                raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+            lines = Path(prompt_file).read_text(encoding="utf-8").splitlines()
             prompts = [line.strip() for line in lines if line.strip()]
+            if not prompts:
+                raise ValueError(f"Prompt file has no prompts: {prompt_file}")
             if len(prompts) == 1:
                 prompts = prompts[0]
+        else:
+            prompts = prompt
         knobs = {
             key: value
             for key, value in (("steps", steps), ("guidance", guidance))
@@ -66,7 +92,7 @@ def generate_cmd(
             model_obj = LibreGen(model, device=device, dtype=dtype, offload=offload)
             results = model_obj(
                 prompts,
-                imgsz=imgsz,
+                imgsz=size,
                 seed=seed,
                 n=n,
                 save=save,

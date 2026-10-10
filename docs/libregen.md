@@ -96,12 +96,14 @@ offline copy, or a fine-tune made with upstream tooling.
 
 ```bash
 libreyolo generate prompt="a red fox" model=sana-sprint-0.6b seed=0 n=4
-libreyolo generate prompt=prompts.txt steps=8 --json
+libreyolo generate prompt="a red fox" imgsz=768x1024
+libreyolo generate prompt_file=prompts.txt steps=8 --json
 ```
 
-`prompt` is the text, or a `.txt` file with one prompt per line; a `.txt`
-path that does not exist is an error. `imgsz` is a single integer (square).
-Images are saved by default; pass `--no-save` to skip.
+`prompt` is always literal text. `prompt_file` reads a text file with one
+prompt per line; pass one or the other. `imgsz` is `1024` for a square image
+or `HEIGHTxWIDTH` such as `768x1024`. Images are saved by default; pass
+`--no-save` to skip.
 
 ## Not supported yet
 

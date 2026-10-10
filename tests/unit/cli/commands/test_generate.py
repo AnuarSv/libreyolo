@@ -95,7 +95,7 @@ def test_grammars(calls, key_value):
 def test_defaults_save_and_read_a_prompt_file(calls, tmp_path):
     prompts = tmp_path / "prompts.txt"
     prompts.write_text("a red fox\n\n  a blue jay  \n")
-    result = CliRunner().invoke(app(), [f"prompt={prompts}", "--json"])
+    result = CliRunner().invoke(app(), [f"prompt_file={prompts}", "--json"])
     assert result.exit_code == 0, result.output
     assert calls[0][1] == "flux2-klein-4b"
     assert calls[1][1] == ["a red fox", "a blue jay"]
@@ -127,14 +127,57 @@ def test_runtime_failures_stay_machine_readable(calls):
     assert json.loads(result.stdout)["error"] == "cuda_oom"
 
 
-def test_prompt_file_edge_cases(calls, tmp_path):
-    result = CliRunner().invoke(app(), [f"prompt={tmp_path / 'missing.txt'}", "--json"])
+def test_prompt_is_literal_and_prompt_file_is_explicit(calls, tmp_path):
+    # Text that looks like a file name is still text.
+    text = "a drawing of a file called notes.txt"
+    result = CliRunner().invoke(app(), [f"prompt={text}", "--json"])
+    assert result.exit_code == 0, result.output
+    assert calls[1][1] == text
+    calls.clear()
+
+    missing = tmp_path / "missing.txt"
+    result = CliRunner().invoke(app(), [f"prompt_file={missing}", "--json"])
     assert result.exit_code != 0
     assert json.loads(result.stdout)["error"] == "io_error"
+    empty = tmp_path / "empty.txt"
+    empty.write_text("\n  \n")
+    result = CliRunner().invoke(app(), ["--prompt-file", str(empty), "--json"])
+    assert result.exit_code == 2
+    assert "no prompts" in json.loads(result.stdout)["message"]
+    result = CliRunner().invoke(
+        app(), ["prompt=a fox", f"prompt_file={empty}", "--json"]
+    )
+    assert json.loads(result.stdout)["error"] == "config_conflict"
+    result = CliRunner().invoke(app(), ["--json"])
+    assert json.loads(result.stdout)["error"] == "config_required_key"
     assert calls == []
+
     one = tmp_path / "one.txt"
     one.write_text("a red fox\n")
-    result = CliRunner().invoke(app(), [f"prompt={one}", "--json"])
+    result = CliRunner().invoke(app(), [f"prompt_file={one}", "--json"])
     assert result.exit_code == 0, result.output
     # A one-line file is one prompt, so output_path stays usable.
     assert calls[1][1] == "a red fox"
+
+
+@pytest.mark.parametrize(
+    "args, expected",
+    [
+        (["imgsz=512"], 512),
+        (["--imgsz", "512"], 512),
+        (["imgsz=768x1024"], (768, 1024)),
+        (["--imgsz", "768x1024"], (768, 1024)),
+        (["imgsz=768,1024"], (768, 1024)),
+    ],
+)
+def test_imgsz_square_and_rectangular(calls, args, expected):
+    result = CliRunner().invoke(app(), ["prompt=a fox", *args, "--json"])
+    assert result.exit_code == 0, result.output
+    assert calls[1][2]["imgsz"] == expected
+
+
+def test_bad_imgsz_is_reported(calls):
+    result = CliRunner().invoke(app(), ["prompt=a fox", "imgsz=big", "--json"])
+    assert result.exit_code == 2
+    assert json.loads(result.stdout)["error"] == "invalid_imgsz"
+    assert calls == []
