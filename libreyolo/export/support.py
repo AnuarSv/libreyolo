@@ -3732,6 +3732,10 @@ _TASK_BLOCKS = {
         "Action-chunk export is blocked until the policy sampling loop has an "
         "exportable graph and backend runtime contract (ADR 0028)."
     ),
+    "generate": (
+        "Image generation export is blocked until a sampling loop over several "
+        "networks has an exportable graph and backend runtime contract (ADR 0030)."
+    ),
     "detect3d": (
         "3D detection export is blocked until its graph outputs, camera metadata, "
         "and backend runtime contract are defined."

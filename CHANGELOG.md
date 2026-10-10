@@ -9,6 +9,9 @@ before 1.4.0 are documented in the
 
 ### Added
 
+- **LibreGen sibling factory and the `generate` task. (#932)**
+  `LibreGen("flux2-klein-4b")("a red fox")` returns `Results.generated`, an `(H, W, 3)` RGB image with the prompt, seed and call parameters that reproduce it. Shared arguments are `imgsz`, `seed`, `n`, `save` and `stream`; settings only some models have (`steps`, `guidance`) are per-family knobs with defaults, and an unsupported one raises. First families are FLUX.2 klein 4B and SANA-Sprint 0.6B (both Apache-2.0; SANA-Sprint bundles a Gemma 2 text encoder under the Gemma Terms of Use), loaded through `diffusers` at pinned revisions. `LibreGen(path)` loads a local pipeline directory. CLI: `libreyolo generate prompt="..."`. Install `libreyolo[gen]`. Training, validation, export and image-conditioned generation are reserved and raise. See ADR 0030 and `docs/libregen.md`.
+
 - **`libreyolo train --clip_max_norm`.**
   Sets the gradient-norm clip from the CLI for YOLO9-family training, and for other families whose registered training config declares `clip_max_norm`; `0` disables clipping.
 
@@ -42,6 +45,9 @@ before 1.4.0 are documented in the
   It used to warn and do nothing. `agnostic_nms=False` is still accepted everywhere.
 
 ### Fixed
+
+- **Simultaneous `save=True` runs no longer share a run directory.**
+  `increment_path(..., mkdir=True)` now reserves the directory by creating it, so two predict, track or generate calls starting at the same moment get separate `predict`, `predict2`, ... folders instead of overwriting each other's files.
 
 - **YOLO9 training clips the gradient norm and assigns labels in fp32. (#927)**
   YOLO9, YOLO9-E2E and YOLO9-P2 clip the gradient L2 norm at 10 before each optimizer step, as the MultimediaTechLab/YOLO recipe does (`clip_max_norm`, `0` to disable). The training assigner scores anchors in fp32, so fp16 autocast can no longer flush every class probability to zero and leave a batch without positives.

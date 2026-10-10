@@ -90,3 +90,33 @@ def test_counter_has_no_upper_bound(tmp_path):
     result = increment_path(tmp_path / "exp")
     assert result == tmp_path / "exp1200"
     assert not result.exists()
+
+
+def test_mkdir_reserves_the_directory_instead_of_trusting_a_check(tmp_path, monkeypatch):
+    """Two callers that both saw the name as free still get separate directories."""
+    # A stale "does it exist?" answer is what a concurrent caller would see.
+    monkeypatch.setattr(Path, "exists", lambda self: False)
+    first = increment_path(tmp_path / "predict", mkdir=True)
+    second = increment_path(tmp_path / "predict", mkdir=True)
+    assert (first, second) == (tmp_path / "predict", tmp_path / "predict2")
+    assert first.is_dir() and second.is_dir()
+
+
+def test_concurrent_mkdir_calls_get_distinct_directories(tmp_path):
+    import threading
+
+    workers = 16
+    barrier = threading.Barrier(workers)
+    claimed = []
+
+    def claim():
+        barrier.wait()
+        claimed.append(increment_path(tmp_path / "predict", mkdir=True))
+
+    threads = [threading.Thread(target=claim) for _ in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(set(claimed)) == workers
+    assert all(path.is_dir() for path in claimed)

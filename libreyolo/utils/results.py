@@ -1164,6 +1164,113 @@ class RestoredImage(_TensorPayload):
         )
 
 
+class GeneratedImage(_TensorPayload):
+    """A synthesized RGB image from a generative model (ADR 0030).
+
+    ``data`` is ``(H, W, 3)`` uint8 RGB. ``prompt`` is the text that produced
+    the image and ``seed`` the integer that reproduces it with the same model
+    and settings. ``params`` records the rest of the call: the model, the
+    image size and the family knobs that were in effect.
+    """
+
+    def __init__(
+        self,
+        data: TensorLike,
+        orig_shape: Tuple[int, int] | None = None,
+        *,
+        prompt: Optional[str] = None,
+        seed: Optional[int] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        if not isinstance(data, (torch.Tensor, np.ndarray)):
+            data = np.asarray(data)
+        if data.ndim != 3 or data.shape[-1] != 3:
+            raise ValueError(
+                f"expected (H, W, 3) generated RGB image but got shape {tuple(data.shape)}"
+            )
+        if orig_shape is None:
+            orig_shape = (int(data.shape[0]), int(data.shape[1]))
+        super().__init__(data, orig_shape)
+        self.prompt = str(prompt) if prompt is not None else None
+        self.seed = int(seed) if seed is not None else None
+        self.params = dict(params) if params else {}
+
+    def _clone(self, data: TensorLike) -> "GeneratedImage":
+        return GeneratedImage(
+            data,
+            self.orig_shape,
+            prompt=self.prompt,
+            seed=self.seed,
+            params=self.params,
+        )
+
+    @property
+    def array(self) -> np.ndarray:
+        """Return the raw HWC uint8 RGB ndarray."""
+        arr = np.asarray(_numpy(self.data))
+        if arr.dtype != np.uint8:
+            arr = np.clip(arr, 0, 255).astype(np.uint8)
+        return arr
+
+    @property
+    def image(self):
+        """Return the image as a ``PIL.Image`` in RGB mode."""
+        from PIL import Image
+
+        return Image.fromarray(self.array)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """One JSON-ready record: what was asked for and how to reproduce it."""
+        h, w = self.array.shape[:2]
+        return {
+            "name": "generated",
+            "shape": [int(h), int(w), 3],
+            "prompt": self.prompt,
+            "seed": self.seed,
+            **self.params,
+        }
+
+    def save(self, path: str | Path) -> None:
+        """Write the image to disk. A PNG also records prompt, seed and params."""
+        path = Path(path)
+        if path.parent and path.parent != Path("."):
+            path.parent.mkdir(parents=True, exist_ok=True)
+        if path.suffix.lower() == ".png":
+            from PIL.PngImagePlugin import PngInfo
+
+            info = PngInfo()
+            info.add_text("libreyolo", json.dumps(self.to_dict(), ensure_ascii=False))
+            self.image.save(path, pnginfo=info)
+        else:
+            self.image.save(path)
+
+    def to(self, *args, **kwargs):
+        return self._clone(_move(self.data, *args, **kwargs))
+
+    def cpu(self):
+        return self._clone(_cpu(self.data))
+
+    def cuda(self):
+        return self._clone(_cuda(self.data))
+
+    def numpy(self):
+        return self._clone(_numpy(self.data))
+
+    def __getitem__(self, idx):
+        # A generated image is one dense RGB canvas; instance indexing does
+        # not apply, so shared Results slicing paths keep it intact.
+        return self._clone(self.data)
+
+    def __len__(self) -> int:
+        return 1
+
+    def __repr__(self) -> str:
+        return (
+            f"GeneratedImage(shape={tuple(self.data.shape)}, "
+            f"prompt={self.prompt!r}, seed={self.seed})"
+        )
+
+
 class Matte(_TensorPayload):
     """Dense soft alpha matte for a single image.
 
@@ -1864,6 +1971,7 @@ class Results:
         "meshes",
         "boxes3d",
         "actions",
+        "generated",
     )
 
     def __init__(
@@ -1899,6 +2007,7 @@ class Results:
         albedo: Optional[AlbedoMap] = None,
         actions: Optional[Actions] = None,
         orig_img: Any = None,
+        generated: Optional[GeneratedImage] = None,
     ):
         if boxes is not None and boxes.orig_shape is None:
             boxes = boxes.with_orig_shape(orig_shape)
@@ -1942,6 +2051,7 @@ class Results:
         self.meshes = meshes
         self.boxes3d = boxes3d
         self.actions = actions
+        self.generated = generated
         # Integer upscale factor of a restore/super-resolution result: the
         # restored canvas is ``restore_scale`` times the input. 1 for
         # deblur/denoise and every non-restore task.
@@ -2006,6 +2116,7 @@ class Results:
             "meshes": self.meshes,
             "boxes3d": self.boxes3d,
             "actions": self.actions,
+            "generated": self.generated,
             "restore_scale": self.restore_scale,
             "embeddings": self.embeddings,
             "identities": self.identities,
@@ -2081,6 +2192,7 @@ class Results:
         boxes3d: Optional[Boxes3D] = None,
         albedo: Optional[AlbedoMap] = None,
         actions: Optional[Actions] = None,
+        generated: Optional[GeneratedImage] = None,
     ) -> "Results":
         aligned_cuboids = boxes3d if boxes3d is not None else self.boxes3d
         if aligned_cuboids is not None:
@@ -2133,6 +2245,8 @@ class Results:
             self.boxes3d = boxes3d
         if actions is not None:
             self.actions = actions
+        if generated is not None:
+            self.generated = generated
         if meshes is not None:
             self.meshes = meshes
         if matte is not None:
@@ -2191,8 +2305,8 @@ class Results:
         Boxes, masks, OBB, keypoints, points, OCR, semantic and panoptic maps,
         and classification top-5 draw exactly like ``predict(save=True)`` and
         return an ``HxWx3`` uint8 BGR array. Dense maps (depth, normal, edge,
-        albedo), 3D cuboids and action chunks return a PIL image. ``pil`` forces
-        either return type.
+        albedo), 3D cuboids, action chunks and generated images return a PIL
+        image. ``pil`` forces either return type.
 
         The source image is ``img`` (BGR array or PIL image), else ``image``
         (RGB array or PIL image), else the image kept by predict
@@ -2240,7 +2354,9 @@ class Results:
         return np.ascontiguousarray(np.asarray(rendered.convert("RGB"))[..., ::-1])
 
     def _plot_dense(self, image=None):
-        """Render dense outputs, 3D cuboids, or an action chunk; None otherwise."""
+        """Render dense outputs, cuboids, actions or a generated image; else None."""
+        if self.generated is not None:
+            return self.generated.image
         if self.actions is not None:
             from PIL import Image
             from .drawing import draw_actions
@@ -2365,17 +2481,20 @@ class Results:
         return frame[..., ::-1] if ok else None
 
     def save(self, path: str, image: Any = None) -> str:
-        """Save a matte result as a transparent-background RGBA PNG cutout.
+        """Save a generated image, or a matte result as a transparent RGBA PNG.
 
-        Returns the written path. Requires the source image (via ``image`` or
-        ``self.path``).
+        Returns the written path. A matte cutout requires the source image
+        (via ``image`` or ``self.path``).
         """
         from PIL import Image
 
+        if self.generated is not None:
+            self.generated.save(path)
+            return str(path)
         if self.matte is None:
             raise NotImplementedError(
-                "Results.save() writes a transparent-PNG cutout and is defined for "
-                "matte results only. Use result.plot(save=True) or CLI --save for other tasks."
+                "Results.save() writes a generated image or a transparent-PNG matte "
+                "cutout. Use result.plot(save=True) or CLI --save for other tasks."
             )
         rgba = self.cutout(image=image)
         out = Path(path)
@@ -2393,6 +2512,8 @@ class Results:
         if self.boxes is None:
             if self.actions is not None:
                 return [self.actions.to_dict(decimals)]
+            if self.generated is not None:
+                return [self.generated.to_dict()]
             if self.embeddings is not None:
                 emb = (
                     self.embeddings.numpy()
@@ -2700,6 +2821,8 @@ class Results:
             return len(self.points)
         if self.actions is not None:
             return len(self.actions)
+        if self.generated is not None:
+            return 1
         if self.embeddings is not None:
             return len(self.embeddings)
         if self.probs is not None:
@@ -2762,6 +2885,8 @@ class Results:
             parts.append(f"boxes3d={self.boxes3d}")
         if self.actions is not None:
             parts.append(f"actions={self.actions}")
+        if self.generated is not None:
+            parts.append(f"generated={self.generated}")
         if self.track_id is not None:
             parts.append(f"track_ids={len(self.track_id)}")
         if self.frame_idx is not None:

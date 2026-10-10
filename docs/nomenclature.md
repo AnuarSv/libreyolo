@@ -347,6 +347,7 @@ From `libreyolo/tasks.py`:
 | `mesh`        | `-mesh` |
 | `detect3d`    | `-detect3d` |
 | `act`         | `-act` |
+| `generate`    | `-generate` |
 
 The factory accepts selected upstream-style aliases (`detection`, `det`,
 `segmentation`, `keypoints`, `cls`, …) at the API boundary; only the canonical
@@ -1024,6 +1025,24 @@ before download. The existing bare COCO filenames and defaults are unchanged.
 The suffix does not denote the raw 365-class pretraining checkpoints.
 See [EdgeCrafter provenance](provenance/edgecrafter.md) for the earlier
 Apache-2.0 defaults and the upstream license-change history.
+
+## Generative image models
+
+`LibreFlux2Klein` (`flux2_klein`, size `4b`, aliases `flux2-klein` and
+`flux2-klein-4b`) and `LibreSanaSprint` (`sana_sprint`, size `0.6b`, aliases
+`sana-sprint` and `sana-sprint-0.6b`) are a sibling API behind the
+`LibreGen(...)` factory, wrapping `diffusers` pipelines through the optional
+`libreyolo[gen]` runtime. They use `generate`, with aliases `generation`,
+`image-generation`, `text-to-image`, `text2image`, `txt2img` and `t2i`, and
+coverage group `s`. Base weights are pinned Hub snapshots downloaded into
+`weights/LibreFlux2Klein4b/` and `weights/LibreSanaSprint0.6b/` as pipeline
+directories; they are not `.pt` files and are not registered in the
+`LibreYOLO(...)` state-dict factory.
+
+`Results.generated` stores the `(H, W, 3)` uint8 RGB image with its prompt,
+seed and call parameters. `LibreGen(path)` loads a local pipeline directory
+of a supported family. The CLI verb is `libreyolo generate`. See ADR 0030
+for the call contract, the family-knob rule and the reserved surface.
 
 ## Vision-language-action policies
 

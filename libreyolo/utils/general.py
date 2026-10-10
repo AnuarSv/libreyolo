@@ -47,19 +47,34 @@ def increment_path(
         The path to use.
     """
     target = Path(path)
-    if target.exists() and not exist_ok:
-        if target.is_file():
-            base, extension = target.stem, target.suffix
-        else:
-            base, extension = target.name, ""
-        for counter in itertools.count(2):
-            candidate = target.with_name(f"{base}{sep}{counter}{extension}")
-            if not candidate.exists():
-                target = candidate
-                break
-    if mkdir:
-        target.mkdir(parents=True, exist_ok=True)
-    return target
+    if exist_ok:
+        if mkdir:
+            target.mkdir(parents=True, exist_ok=True)
+        return target
+
+    def claim(candidate: Path) -> bool:
+        """True when ``candidate`` is free; with ``mkdir`` it is reserved too."""
+        if not mkdir:
+            return not candidate.exists()
+        # Creating the directory is the check: two callers racing for the same
+        # name cannot both succeed, so each run gets its own directory.
+        try:
+            candidate.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            return False
+        return True
+
+    if claim(target):
+        return target
+    if target.is_file():
+        base, extension = target.stem, target.suffix
+    else:
+        base, extension = target.name, ""
+    for counter in itertools.count(2):
+        candidate = target.with_name(f"{base}{sep}{counter}{extension}")
+        if claim(candidate):
+            return candidate
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 # COCO class names (80 classes)

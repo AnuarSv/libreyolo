@@ -35,7 +35,8 @@ Required field meanings:
   `pose`, `classify`, `gaze`, `obb`, `point`, `depth`, `edge`, `normal`, `albedo`, `restore`,
   `matte`, `ocr`, `embed`, `mesh`, or `detect3d`. The `act` task has no
   schema-v1 `.pt` form; its checkpoints are directories (see "Optional
-  LibreVLA runtime").
+  LibreVLA runtime"). The `generate` task has none either (see "Optional
+  LibreGen runtime").
 - `nc`: positive integer class count.
 - `names`: `dict[int, str]` with keys in `0..nc-1`. Official checkpoints
   should write every key. Readers may pad missing keys with `class_i` labels for
@@ -475,6 +476,15 @@ wrap_libreyolo_checkpoint(...)
 unwrap_libreyolo_checkpoint(...)
 validate_checkpoint_metadata(...)
 ```
+
+### Optional LibreGen runtime
+
+The `generate` task reserves the suffix `-generate`. `LibreGen` weights are
+pipeline directories, not schema-v1 `.pt` files: the upstream `diffusers`
+folder with `model_index.json`, pinned to a Hub commit and never converted.
+A local directory loads when the pipeline class in its `model_index.json`
+matches a registered family. A LibreYOLO contract file for fine-tunes is not
+defined yet. See `docs/libregen.md` and ADR 0030.
 
 ### Optional LibreVLA runtime
 

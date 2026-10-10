@@ -28,6 +28,7 @@ TaskType = Literal[
     "mesh",
     "detect3d",
     "act",
+    "generate",
 ]
 TASKS = (
     "detect",
@@ -50,6 +51,7 @@ TASKS = (
     "mesh",
     "detect3d",
     "act",
+    "generate",
 )
 
 TASK_ALIASES = {
@@ -150,6 +152,16 @@ TASK_ALIASES = {
     "policy": "act",
     "robot-policy": "act",
     "robot_policy": "act",
+    # Generative image models: a synthesized RGB image is the primitive.
+    "generate": "generate",
+    "generation": "generate",
+    "image-generation": "generate",
+    "image_generation": "generate",
+    "text-to-image": "generate",
+    "text_to_image": "generate",
+    "text2image": "generate",
+    "txt2img": "generate",
+    "t2i": "generate",
 }
 
 TASK_TO_SUFFIX = {
@@ -172,6 +184,7 @@ TASK_TO_SUFFIX = {
     "embed": "embed",
     "mesh": "mesh",
     "act": "act",
+    "generate": "generate",
 }
 
 SUFFIX_TO_TASK = {v: k for k, v in TASK_TO_SUFFIX.items()}
