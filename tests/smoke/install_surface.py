@@ -147,6 +147,13 @@ def _check_import_surface(expect_source: str, source_root: Path | None) -> None:
         raise AssertionError("LibreVLA import did not resolve to a callable")
     if not all(isinstance(cls, type) for cls in (LibreSmolVLA, LibreACT, LibreDiffusionPolicy, Actions)):
         raise AssertionError("LibreVLA family/payload exports did not resolve to classes")
+    # The LibreGen tier is importable without the gen extra (diffusers loads lazily).
+    from libreyolo import GeneratedImage, LibreFlux2Klein, LibreGen, LibreSanaSprint
+
+    if not callable(LibreGen):
+        raise AssertionError("LibreGen import did not resolve to a callable")
+    if not all(isinstance(cls, type) for cls in (LibreFlux2Klein, LibreSanaSprint, GeneratedImage)):
+        raise AssertionError("LibreGen family/payload exports did not resolve to classes")
     for family in (
         LibreQwen3VL,
         LibreLFM2VL,

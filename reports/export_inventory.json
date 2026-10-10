@@ -893,6 +893,25 @@
     "available": true,
     "group": "s"
   },
+  "flux2_klein": {
+    "class": "libreyolo.models.gen.flux2_klein.LibreFlux2Klein",
+    "tasks": [
+      "generate"
+    ],
+    "default_task": "generate",
+    "sizes": {
+      "4b": 1024
+    },
+    "default_imgsz": {
+      "4b": 1024
+    },
+    "task_sizes": {},
+    "export_override": "blocked",
+    "optional_extra": "gen",
+    "available": false,
+    "group": "s",
+    "cli_command": "generate"
+  },
   "fomo": {
     "class": "libreyolo.models.fomo.model.LibreFOMO",
     "tasks": [
@@ -2163,6 +2182,25 @@
     "optional_extra": null,
     "available": false,
     "group": "g3"
+  },
+  "sana_sprint": {
+    "class": "libreyolo.models.gen.sana_sprint.LibreSanaSprint",
+    "tasks": [
+      "generate"
+    ],
+    "default_task": "generate",
+    "sizes": {
+      "0.6b": 1024
+    },
+    "default_imgsz": {
+      "0.6b": 1024
+    },
+    "task_sizes": {},
+    "export_override": "blocked",
+    "optional_extra": "gen",
+    "available": false,
+    "group": "s",
+    "cli_command": "generate"
   },
   "segformer": {
     "class": "libreyolo.models.segformer.model.LibreSegformer",

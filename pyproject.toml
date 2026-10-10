@@ -141,6 +141,14 @@ vla = [
     # of `all` for the same reason.
     "lerobot[smolvla,diffusion,dataset]>=0.6.1; python_version >= '3.12'",
 ]
+gen = [
+    # LibreGen loads generative image pipelines (FLUX.2 klein, SANA-Sprint)
+    # through the Apache-2.0 diffusers package; text encoders come from
+    # transformers and accelerate backs low-memory loading and offload=True.
+    "diffusers>=0.38.0",
+    "transformers>=5.1.0",
+    "accelerate>=1.7.0",
+]
 llm = [
     # LibreLLM talks to OpenAI-compatible Responses / Chat Completions
     # endpoints through the official Apache-2.0 OpenAI Python SDK.
@@ -365,6 +373,7 @@ all = [
     "libreyolo[coreml]",
     "libreyolo[vlm]",
     "libreyolo[llm]",
+    "libreyolo[gen]",
     "libreyolo[sam]",
     "libreyolo[label]",
     "libreyolo[openvocab]",
@@ -608,6 +617,7 @@ markers = [
     "vlm: tests covering the LibreVLM (VLM-as-detector) tier",
     "llm: tests covering the LibreLLM OpenAI-compatible client",
     "vla: tests covering the LibreVLA (vision-language-action) tier",
+    "gen: tests covering the LibreGen (generative image) tier",
     "sam: tests covering the LibreSAM (promptable-segmentation) tier",
     "openvocab: tests covering the LibreOpenVocab detector tier",
     "sensenova: tests covering the LibreSenseNovaVision unified multimodal family",
