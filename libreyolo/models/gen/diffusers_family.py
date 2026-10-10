@@ -64,6 +64,9 @@ class DiffusersGenFamily(LibreGenModel):
             )
         return pipeline_class
 
+    def _check_runtime(self) -> None:
+        self._require_pipeline_class()
+
     def _load(self, snapshot_dir: str) -> None:
         pipeline_class = self._require_pipeline_class()
         import diffusers

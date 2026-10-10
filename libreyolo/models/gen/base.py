@@ -169,8 +169,12 @@ class LibreGenModel:
         self._ensure_loaded()
         return self._pipeline
 
+    def _check_runtime(self) -> None:
+        """Raise when the upstream runtime is missing; runs before any download."""
+
     def _ensure_loaded(self) -> None:
         if self._pipeline is None:
+            self._check_runtime()
             self._load(self._ensure_weights())
 
     @staticmethod
@@ -492,12 +496,13 @@ class LibreGenModel:
                 raise ValueError(
                     f"output_path needs an image extension such as .png, got {output_path!r}."
                 )
-        # One run directory per generate() call, like the shared predict runner.
-        self._save_dir = None
 
         def run() -> Generator[Results, None, None]:
             self._ensure_loaded()
             index = 0
+            # One run directory per generate() call, like the shared predict
+            # runner; it lives here so concurrent streams never share one.
+            save_dir: Optional[Path] = None
             for text in prompts:
                 seeds = self._seeds(seed, n)
                 started = time.perf_counter()
@@ -511,7 +516,9 @@ class LibreGenModel:
                 for image, image_seed in zip(images, seeds):
                     result = self._result(image, text, image_seed, settings, elapsed_ms)
                     if save:
-                        self._save_image(result, index, output_path)
+                        save_dir = self._save_image(
+                            result, index, output_path, save_dir
+                        )
                     index += 1
                     yield result
 
@@ -524,23 +531,28 @@ class LibreGenModel:
     __call__ = generate
 
     def _save_image(
-        self, result: Results, index: int, output_path: Optional[str]
-    ) -> None:
+        self,
+        result: Results,
+        index: int,
+        output_path: Optional[str],
+        save_dir: Optional[Path],
+    ) -> Optional[Path]:
+        """Write one image; return the call's run directory once it exists."""
         from ...utils.general import increment_path, log_saved_result
 
         if output_path is not None:
             destination = Path(output_path)
         else:
-            if self._save_dir is None:
-                self._save_dir = increment_path(
-                    Path("runs/generate/predict"), mkdir=True
-                )
+            if save_dir is None:
+                save_dir = increment_path(Path("runs/generate/predict"), mkdir=True)
+                self._save_dir = save_dir
             generated = result.generated
             slug = re.sub(r"[^a-z0-9]+", "-", generated.prompt.lower()).strip("-")[:40]
             name = f"{index:03d}_{slug.rstrip('-') or 'image'}_{generated.seed}.png"
-            destination = self._save_dir / name
+            destination = save_dir / name
         result.generated.save(destination)
         log_saved_result(result, destination)
+        return save_dir
 
     # ------------------------------------------------------------------
     # Train / val / unsupported

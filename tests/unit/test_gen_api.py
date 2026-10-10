@@ -315,6 +315,18 @@ def test_save_writes_one_run_directory_per_call(model, tmp_path, monkeypatch):
     assert Image.open("out/mine.png").size == (64, 64)
 
 
+def test_interleaved_streams_keep_their_own_run_directory(model, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    first = model(["a", "b"], seed=1, stream=True, save=True)
+    second = model(["a"], seed=1, stream=True, save=True, steps=9)
+    paths = [next(first).saved_path, next(second).saved_path, next(first).saved_path]
+    assert paths == [
+        "runs/generate/predict/000_a_1.png",
+        "runs/generate/predict2/000_a_1.png",
+        "runs/generate/predict/001_b_1.png",
+    ]
+
+
 def test_auto_dtype_follows_the_device(model):
     assert model._resolve_dtype() is torch.float32
     model.device = torch.device("mps")
@@ -496,6 +508,14 @@ def test_snapshot_download_is_pinned_and_marked(tmp_path, monkeypatch):
 
     monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_snapshot_download)
     model = LibreSanaSprint("0.6b", device="cpu")
+    # A missing runtime is reported before anything is downloaded.
+    monkeypatch.setitem(__import__("sys").modules, "diffusers", None)
+    with pytest.raises(ImportError, match=r"libreyolo\[gen\]"):
+        model("a fox")
+    assert downloads == []
+    monkeypatch.undo()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_snapshot_download)
     assert model._ensure_weights() == "weights/LibreSanaSprint0.6b"
     repo, kwargs = downloads[0]
     assert repo == LibreSanaSprint.HF_REPOS["0.6b"]
