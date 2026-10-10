@@ -9,6 +9,7 @@ family, and the diffusers adapter through a fake pipeline class.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -55,6 +56,11 @@ class FakeGen(LibreGenModel):
 @pytest.fixture
 def model():
     return FakeGen("s", device="cpu")
+
+
+def _posix(path) -> str:
+    """Compare saved paths the same way on Windows."""
+    return Path(path).as_posix()
 
 
 # ---------------------------------------------------------------------------
@@ -305,13 +311,14 @@ def test_stream_is_lazy(model):
 def test_save_writes_one_run_directory_per_call(model, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     results = model(["A red fox!", "a blue jay"], seed=1, save=True)
-    assert [r.saved_path for r in results] == [
+    assert [_posix(r.saved_path) for r in results] == [
         "runs/generate/predict/000_a-red-fox_1.png",
         "runs/generate/predict/001_a-blue-jay_1.png",
     ]
-    assert model("a", seed=1, save=True).saved_path.startswith("runs/generate/predict2/")
+    again = model("a", seed=1, save=True).saved_path
+    assert _posix(again).startswith("runs/generate/predict2/")
     result = model("a", seed=1, save=True, output_path="out/mine.png")
-    assert result.saved_path == "out/mine.png"
+    assert _posix(result.saved_path) == "out/mine.png"
     assert Image.open("out/mine.png").size == (64, 64)
 
 
@@ -319,7 +326,9 @@ def test_interleaved_streams_keep_their_own_run_directory(model, tmp_path, monke
     monkeypatch.chdir(tmp_path)
     first = model(["a", "b"], seed=1, stream=True, save=True)
     second = model(["a"], seed=1, stream=True, save=True, steps=9)
-    paths = [next(first).saved_path, next(second).saved_path, next(first).saved_path]
+    paths = [
+        _posix(next(stream).saved_path) for stream in (first, second, first)
+    ]
     assert paths == [
         "runs/generate/predict/000_a_1.png",
         "runs/generate/predict2/000_a_1.png",
@@ -526,12 +535,12 @@ def test_snapshot_download_is_pinned_and_marked(tmp_path, monkeypatch):
     monkeypatch.undo()
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_snapshot_download)
-    assert model._ensure_weights() == "weights/LibreSanaSprint0.6b"
+    assert _posix(model._ensure_weights()) == "weights/LibreSanaSprint0.6b"
     repo, kwargs = downloads[0]
     assert repo == LibreSanaSprint.HF_REPOS["0.6b"]
     assert kwargs["revision"] == LibreSanaSprint.HF_REVISIONS["0.6b"]
     assert "*/*.safetensors" in kwargs["allow_patterns"]
     assert "*.safetensors" not in kwargs["allow_patterns"]
     # A complete snapshot is not downloaded again.
-    assert model._ensure_weights() == "weights/LibreSanaSprint0.6b"
+    assert _posix(model._ensure_weights()) == "weights/LibreSanaSprint0.6b"
     assert len(downloads) == 1
