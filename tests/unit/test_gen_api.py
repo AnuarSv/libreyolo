@@ -466,6 +466,10 @@ def test_to_moves_the_auto_dtype_with_the_device(diffusers_model, monkeypatch):
     monkeypatch.setattr(
         type(diffusers_model), "_resolve_device", staticmethod(torch.device)
     )
+    # The MPS auto dtype depends on the macOS release, so pin one.
+    monkeypatch.setattr(
+        "platform.mac_ver", lambda: ("15.1", ("", "", ""), "arm64")
+    )
     diffusers_model.to("mps")
     assert moves == [(torch.device("mps"), torch.bfloat16)]
 
