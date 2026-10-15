@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 import numpy as np
 
 # Re-exported: ConfusionMatrix used to be defined in this module.
-from .confusion_matrix import ConfusionMatrix, _box_iou as _box_iou_numpy
+from .confusion_matrix import ConfusionMatrix, _box_iou as _box_iou_numpy, _in_crowd
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +123,8 @@ def match_detections(
     gt_classes: np.ndarray,    # (M,) int
     conf_thres: float = VISUALIZE_CONF_THRES,
     iou_thres: float = VISUALIZE_IOU_THRES,
+    crowd_boxes: Optional[np.ndarray] = None,  # (K, 4) xyxy pixel coords
+    crowd_classes: Optional[np.ndarray] = None,  # (K,) int
 ) -> Dict[str, np.ndarray]:
     """Split one image's boxes into true positives, false positives and misses.
 
@@ -131,7 +133,9 @@ def match_detections(
     ``iou_thres``. A matched prediction is a true positive, an unmatched one a
     false positive, and an unmatched ground-truth box a false negative, so a
     box with the wrong class counts as one false positive plus one false
-    negative.
+    negative. An unmatched prediction inside a same-class crowd region
+    (``crowd_boxes``, COCO ``iscrowd=1``) is dropped instead, as mAP ignores
+    it (#934).
 
     Returns ``keep`` (bool mask over the input predictions), ``tp`` (bool mask
     over the kept predictions) and ``fn`` (bool mask over the ground truth).
@@ -156,6 +160,13 @@ def match_detections(
             if fn[gi] and not tp[pi]:
                 fn[gi] = False
                 tp[pi] = True
+
+    ignored = ~tp & _in_crowd(
+        kept_boxes, kept_classes, crowd_boxes, crowd_classes, iou_thres
+    )
+    if ignored.any():
+        keep[np.flatnonzero(keep)[ignored]] = False
+        tp = tp[~ignored]
 
     return {"keep": keep, "tp": tp, "fn": fn}
 
@@ -944,17 +955,21 @@ class ValPlotter:
         show_conf: bool = True,
         conf_thres: float = VISUALIZE_CONF_THRES,
         iou_thres: float = VISUALIZE_IOU_THRES,
+        crowd_boxes: Optional[np.ndarray] = None,
+        crowd_classes: Optional[np.ndarray] = None,
     ) -> None:
         """Save one image with its true positives, false positives and misses.
 
         True positives are green, false positives red and false negatives
         (unmatched ground truth) orange; a header counts each. Matching is
-        :func:`match_detections`.
+        :func:`match_detections`, so predictions a crowd region ignores are
+        not drawn.
         """
         cv2 = ValPlotter._require_cv2()
         match = match_detections(
             pred_boxes, pred_classes, pred_scores, gt_boxes, gt_classes,
             conf_thres=conf_thres, iou_thres=iou_thres,
+            crowd_boxes=crowd_boxes, crowd_classes=crowd_classes,
         )
         canvas, factor = ValPlotter._readable_canvas(cv2, img_bgr)
         h, w = canvas.shape[:2]
