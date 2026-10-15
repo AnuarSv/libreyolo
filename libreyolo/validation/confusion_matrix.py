@@ -253,6 +253,11 @@ class ConfusionMatrix:
         background = self.nc
         gt_paired = np.zeros(len(gt_boxes), dtype=bool)
         pred_paired = np.zeros(len(pred_boxes), dtype=bool)
+        # A crowd region takes the predictions inside it that their own class
+        # does not match, so those never pair across classes either.
+        in_crowd = _in_crowd(
+            pred_boxes, pred_classes, crowd_boxes, crowd_classes, self.iou_thres
+        )
         if len(gt_boxes) and len(pred_boxes):
             iou = _box_iou(gt_boxes, pred_boxes)  # (num_gt, num_pred)
             gt_idxs, pred_idxs = np.where(iou >= self.iou_thres)
@@ -260,15 +265,16 @@ class ConfusionMatrix:
             for gi, pi in zip(gt_idxs[order], pred_idxs[order]):
                 if gt_paired[gi] or pred_paired[pi]:
                     continue
+                if in_crowd[pi] and gt_classes[gi] != pred_classes[pi]:
+                    continue
                 gt_paired[gi] = True
                 pred_paired[pi] = True
                 self._counts[pred_classes[pi], gt_classes[gi]] += 1
 
-        pred_background = ~pred_paired & ~_in_crowd(
-            pred_boxes, pred_classes, crowd_boxes, crowd_classes, self.iou_thres
-        )
         np.add.at(self._counts, (background, gt_classes[~gt_paired]), 1)
-        np.add.at(self._counts, (pred_classes[pred_background], background), 1)
+        np.add.at(
+            self._counts, (pred_classes[~pred_paired & ~in_crowd], background), 1
+        )
 
     def process_cls_preds(self, preds: Any, targets: Any) -> None:
         """Add top-1 class indices against label indices to a classify matrix.

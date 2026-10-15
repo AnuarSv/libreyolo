@@ -176,6 +176,14 @@ class TestCrowdRegions:
         assert matrix[1, 1] == 1
         assert int(matrix.sum()) == 1
 
+    def test_a_crowd_prediction_never_pairs_with_another_class(self):
+        # COCO scores each class alone: the class-1 prediction falls to its
+        # crowd region, and the class-0 box it overlaps is a miss.
+        matrix = self._matrix(_box(110, 110), 1, [_box(110, 110)], [0], 1)
+        assert matrix[1, 0] == 0
+        assert matrix[2, 0] == 1
+        assert int(matrix.sum()) == 1
+
 
 class TestExport:
     def test_summary_has_one_row_per_predicted_class(self):
